@@ -5,7 +5,7 @@ const { validationResult } = require("express-validator");
 // ➕ Add Property (Owner only)
 exports.addProperty = async (req, res) => {
   try {
-    const { title, location, rent } = req.body;
+    const { title, location, rent, lat, lng } = req.body;
     const errors = validationResult(req);
     if (!errors.isEmpty())
       return res
@@ -16,6 +16,8 @@ exports.addProperty = async (req, res) => {
       title,
       location,
       rent,
+      lat,
+      lng,
       owner: req.user.id,
     });
 
@@ -37,7 +39,12 @@ exports.addProperty = async (req, res) => {
 // 📥 Get All Properties
 exports.getProperties = async (req, res) => {
   try {
-    const properties = await Property.find()
+    let query = {};
+    if (req.user && req.user.role === 'owner') {
+      query.owner = req.user.id;
+    }
+
+    const properties = await Property.find(query)
       .populate("owner", "name email")
       .populate({
         path: "leases",

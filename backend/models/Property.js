@@ -15,6 +15,14 @@ const propertySchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    lat: {
+      type: Number,
+      default: 12.9716,
+    },
+    lng: {
+      type: Number,
+      default: 77.5946,
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

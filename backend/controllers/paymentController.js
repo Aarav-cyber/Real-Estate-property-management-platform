@@ -12,14 +12,23 @@ exports.addPayment = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: errors.array()[0].msg });
-    const { propertyId, amount, status } = req.body;
+    const { propertyId, amount, status, existingPaymentId } = req.body;
 
-    const payment = await Payment.create({
-      tenant: req.user.id,
-      property: propertyId,
-      amount,
-      status,
-    });
+    let payment;
+    if (existingPaymentId) {
+      payment = await Payment.findByIdAndUpdate(
+        existingPaymentId,
+        { status, paymentDate: new Date() },
+        { new: true }
+      );
+    } else {
+      payment = await Payment.create({
+        tenant: req.user.id,
+        property: propertyId,
+        amount,
+        status,
+      });
+    }
 
     const populated = await Payment.findById(payment._id)
       .populate("tenant", "name email")
@@ -27,7 +36,7 @@ exports.addPayment = async (req, res) => {
 
     return res
       .status(201)
-      .json({ success: true, message: "Payment added", data: populated });
+      .json({ success: true, message: existingPaymentId ? "Payment updated" : "Payment added", data: populated });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -72,7 +81,7 @@ exports.createOrder = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
   try {
-    const { order_id, payment_id, signature, propertyId, amount, status } =
+    const { order_id, payment_id, signature, propertyId, amount, status, existingPaymentId } =
       req.body;
     const body = `${order_id}|${payment_id}`;
 
@@ -87,18 +96,23 @@ exports.verifyPayment = async (req, res) => {
         .json({ success: false, message: "Invalid signature" });
     }
 
-    // OPTIONAL: persist payment to DB (tenant comes from auth token)
-    // require `authMiddleware` on the route so req.user is available
-    const paymentData = {
-      tenant: req.user?.id || null,
-      property: propertyId || null,
-      amount: amount || null,
-      paymentDate: new Date(),
-      status: status || "paid",
-    };
-
-    // create and return saved payment only if you want DB persistence
-    const saved = await Payment.create(paymentData);
+    let saved;
+    if (existingPaymentId) {
+      saved = await Payment.findByIdAndUpdate(
+        existingPaymentId,
+        { status: status || "paid", paymentDate: new Date() },
+        { new: true }
+      );
+    } else {
+      const paymentData = {
+        tenant: req.user?.id || null,
+        property: propertyId || null,
+        amount: amount || null,
+        paymentDate: new Date(),
+        status: status || "paid",
+      };
+      saved = await Payment.create(paymentData);
+    }
 
     const populated = await Payment.findById(saved._id)
       .populate("tenant", "name email")

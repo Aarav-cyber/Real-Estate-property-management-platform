@@ -19,6 +19,8 @@ app.use(cors()); // Enable CORS
 // ================= ROUTES =================
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/properties", require("./routes/propertyRoutes"));
+// requests
+app.use("/api/requests", require("./routes/requestRoutes"));
 
 // Test route
 app.get("/test", (req, res) => {
