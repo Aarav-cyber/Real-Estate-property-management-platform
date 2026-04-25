@@ -12,6 +12,10 @@ import LeasesPage     from './pages/LeasesPage';
 import PaymentsPage   from './pages/PaymentsPage';
 import RequestsPage   from './pages/RequestsPage';
 import PropertyDetailsPage from './pages/PropertyDetailsPage';
+import AddPropertyPage    from './pages/AddPropertyPage';
+import AddLeasePage       from './pages/AddLeasePage';
+import EditLeasePage      from './pages/EditLeasePage';
+import AddPaymentPage     from './pages/AddPaymentPage';
 
 export default function App() {
   return (
@@ -48,11 +52,23 @@ export default function App() {
         <Route path="/properties/:id" element={
           <ProtectedRoute><PropertyDetailsPage /></ProtectedRoute>
         } />
+        <Route path="/add-property" element={
+          <ProtectedRoute><AddPropertyPage /></ProtectedRoute>
+        } />
         <Route path="/leases" element={
           <ProtectedRoute><LeasesPage /></ProtectedRoute>
         } />
+        <Route path="/add-lease" element={
+          <ProtectedRoute><AddLeasePage /></ProtectedRoute>
+        } />
+        <Route path="/edit-lease/:id" element={
+          <ProtectedRoute><EditLeasePage /></ProtectedRoute>
+        } />
         <Route path="/payments" element={
           <ProtectedRoute><PaymentsPage /></ProtectedRoute>
+        } />
+        <Route path="/add-payment" element={
+          <ProtectedRoute><AddPaymentPage /></ProtectedRoute>
         } />
 
         {/* Requests — accessible to all but only owners see data */}

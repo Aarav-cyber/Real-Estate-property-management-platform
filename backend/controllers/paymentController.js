@@ -4,7 +4,7 @@ const razorpay = require("../utils/razorpay");
 
 const crypto = require("crypto");
 
-// ➕ Add Payment (Tenant only)
+// ➕ Add Payment (Tenant or Manager)
 exports.addPayment = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -12,21 +12,22 @@ exports.addPayment = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: errors.array()[0].msg });
-    const { propertyId, amount, status, existingPaymentId } = req.body;
+    const { propertyId, amount, status, existingPaymentId, tenantId, paymentDate } = req.body;
 
     let payment;
     if (existingPaymentId) {
       payment = await Payment.findByIdAndUpdate(
         existingPaymentId,
-        { status, paymentDate: new Date() },
+        { status, paymentDate: paymentDate || new Date() },
         { new: true }
       );
     } else {
       payment = await Payment.create({
-        tenant: req.user.id,
+        tenant: tenantId || req.user.id, // Manager can specify tenantId
         property: propertyId,
         amount,
         status,
+        paymentDate: paymentDate || new Date(),
       });
     }
 
@@ -41,6 +42,21 @@ exports.addPayment = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ❌ Delete Payment
+exports.deletePayment = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id);
+    if (!payment)
+      return res.status(404).json({ success: false, message: "Payment not found" });
+
+    await payment.deleteOne();
+    return res.json({ success: true, message: "Payment deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
 // 📥 Get Payment History
 exports.getPayments = async (req, res) => {

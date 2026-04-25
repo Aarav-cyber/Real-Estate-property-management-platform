@@ -18,6 +18,8 @@ export const leasesAPI = {
   getAll: () => api.get('/leases'),
   getById: (id) => api.get(`/leases/${id}`),
   create: (data) => api.post('/leases', data),
+  update: (id, data) => api.put(`/leases/${id}`, data),
+  delete: (id) => api.delete(`/leases/${id}`),
   upload: (formData) =>
     api.post('/leases/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -27,6 +29,7 @@ export const leasesAPI = {
 export const paymentsAPI = {
   getAll: () => api.get('/payments'),
   add: (data) => api.post('/payments', data),
+  delete: (id) => api.delete(`/payments/${id}`),
   createOrder: (data) => api.post('/payments/create-order', data),
   verify: (data) => api.post('/payments/verify', data),
 };

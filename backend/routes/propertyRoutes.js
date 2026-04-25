@@ -18,7 +18,7 @@ const router = express.Router();
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("owner"),
+  roleMiddleware(["owner", "manager"]),
   [
     body("title").notEmpty().withMessage("Title is required"),
     body("location").notEmpty().withMessage("Location is required"),
@@ -38,7 +38,7 @@ router.get("/:id", authMiddleware, getPropertyById);
 router.put(
   "/assign/:id",
   authMiddleware,
-  roleMiddleware("owner"),
+  roleMiddleware(["owner", "manager"]),
   [
     body("tenantId").notEmpty().withMessage("Tenant ID required"),
     body("leaseStart").optional().isISO8601().withMessage("Invalid start date"),
@@ -47,8 +47,8 @@ router.put(
   assignTenant,
 );
 
-// Owner only
-router.put("/:id", authMiddleware, roleMiddleware("owner"), updateProperty);
-router.delete("/:id", authMiddleware, roleMiddleware("owner"), deleteProperty);
+// Owner and Manager only
+router.put("/:id", authMiddleware, roleMiddleware(["owner", "manager"]), updateProperty);
+router.delete("/:id", authMiddleware, roleMiddleware(["owner", "manager"]), deleteProperty);
 
 module.exports = router;

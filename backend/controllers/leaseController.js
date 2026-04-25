@@ -104,3 +104,39 @@ exports.getLeaseById = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ✏️ Update Lease
+exports.updateLease = async (req, res) => {
+  try {
+    const lease = await Lease.findByIdAndUpdate(req.params.id, req.body, { new: true })
+      .populate("tenant", "name email")
+      .populate("property", "title location");
+
+    if (!lease)
+      return res.status(404).json({ success: false, message: "Lease not found" });
+
+    return res.json({ success: true, message: "Lease updated", data: lease });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ❌ Delete Lease
+exports.deleteLease = async (req, res) => {
+  try {
+    const lease = await Lease.findById(req.params.id);
+    if (!lease)
+      return res.status(404).json({ success: false, message: "Lease not found" });
+
+    // Remove lease from property's leases array
+    await Property.findByIdAndUpdate(lease.property, {
+      $pull: { leases: lease._id },
+    });
+
+    await lease.deleteOne();
+    return res.json({ success: true, message: "Lease deleted" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+

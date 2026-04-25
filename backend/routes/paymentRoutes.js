@@ -1,25 +1,21 @@
 const express = require("express");
+const router = express.Router();
 const { body } = require("express-validator");
-
-
-const { addPayment, getPayments, createOrder, verifyPayment } = require("../controllers/paymentController");
-
-
+const { addPayment, getPayments, createOrder, verifyPayment, deletePayment } = require("../controllers/paymentController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
-const router = express.Router();
+
 
 router.post("/create-order", authMiddleware, createOrder);
-//VerifyPayment
 router.post("/verify", authMiddleware, verifyPayment);
 
-// Tenant pays
+// Tenant pays or Manager records
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("tenant"),
+  roleMiddleware(["tenant", "manager"]),
   [
     body("propertyId").notEmpty().withMessage("Property ID required"),
     body("amount").isNumeric().withMessage("Amount must be number"),
@@ -28,7 +24,10 @@ router.post(
   addPayment
 );
 
-// View payments (all logged-in users)
+// View payments
 router.get("/", authMiddleware, getPayments);
+
+// Manager can delete
+router.delete("/:id", authMiddleware, roleMiddleware(["manager"]), deletePayment);
 
 module.exports = router;

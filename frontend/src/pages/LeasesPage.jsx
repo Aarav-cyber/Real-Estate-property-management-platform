@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { leasesAPI } from '../services/api';
+import api from '../lib/axios';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Plus, Upload, X, Loader2, Calendar, Building2, User, ExternalLink } from 'lucide-react';
+import { FileText, Plus, Upload, X, Loader2, Calendar, Building2, User, ExternalLink, Edit2, Trash2, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -24,6 +25,7 @@ function Modal({ title, onClose, children }) {
 }
 
 export default function LeasesPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const location = useLocation();
   const [leases, setLeases] = useState([]);
@@ -34,7 +36,8 @@ export default function LeasesPage() {
   const [form, setForm] = useState({ tenantId: '', propertyId: '', startDate: '', endDate: '' });
   const [file, setFile] = useState(null);
 
-  const isOwner = user?.role === 'owner';
+  const isOwner = user?.role?.toLowerCase() === 'owner';
+  const isManager = user?.role?.toLowerCase() === 'manager';
 
   useEffect(() => {
     fetchLeases();
@@ -103,11 +106,18 @@ export default function LeasesPage() {
             <h2 className="font-display font-bold text-2xl text-white">Lease Agreements</h2>
             <p className="text-gray-400 text-sm mt-1">{leases.length} total leases</p>
           </div>
-          {isOwner && (
-            <button onClick={() => setShowCreate(true)} className="btn-primary" id="create-lease-btn">
-              <Plus size={17} /> Create Lease
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isManager && (
+              <button onClick={() => navigate('/add-lease')} className="btn-primary" id="add-lease-btn">
+                <Plus size={17} /> Add Lease
+              </button>
+            )}
+            {isOwner && (
+              <button onClick={() => setShowCreate(true)} className="btn-primary" id="create-lease-btn">
+                <Plus size={17} /> Create Lease
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -126,7 +136,7 @@ export default function LeasesPage() {
               <table className="w-full">
                 <thead className="border-b border-white/5 bg-dark-700/40">
                   <tr>
-                    {['Property', 'Tenant', 'Start Date', 'End Date', 'Status', 'Document', isOwner ? 'Actions' : ''].filter(Boolean).map((h) => (
+                    {['ID', 'Property', 'Tenant', 'Start Date', 'End Date', 'Status', 'Document', (isOwner || isManager || user?.role?.toLowerCase() === 'tenant') ? 'Actions' : ''].filter(Boolean).map((h) => (
                       <th key={h} className="table-header text-left">{h}</th>
                     ))}
                   </tr>
@@ -134,6 +144,9 @@ export default function LeasesPage() {
                 <tbody className="divide-y divide-white/5">
                   {leases.map((lease) => (
                     <tr key={lease._id} className="hover:bg-white/2 transition-colors">
+                      <td className="table-cell">
+                        <code className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">{lease._id.slice(-6).toUpperCase()}</code>
+                      </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-primary-500/15 flex items-center justify-center flex-shrink-0">
@@ -185,15 +198,65 @@ export default function LeasesPage() {
                           <span className="text-gray-600 text-sm">No file</span>
                         )}
                       </td>
-                      {isOwner && (
+                      {(isOwner || isManager || user?.role?.toLowerCase() === 'tenant') && (
                         <td className="table-cell">
-                          <button
-                            onClick={() => setShowUpload(lease)}
-                            className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 border border-primary-500/20 hover:border-primary-500/40 px-3 py-1.5 rounded-lg transition-all"
-                            id={`upload-doc-${lease._id}`}
-                          >
-                            <Upload size={12} /> Upload Doc
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {user?.role?.toLowerCase() === 'tenant' && (
+                              <button
+                                onClick={() => navigate('/payments', { 
+                                  state: { 
+                                    propertyId: lease.property?._id || lease.property,
+                                    amount: lease.property?.rent || '' 
+                                  } 
+                                })}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 rounded-lg text-xs font-bold transition-all"
+                                id={`tenant-pay-btn-${lease._id}`}
+                              >
+                                <CreditCard size={13} /> Pay Rent
+                              </button>
+                            )}
+                            {isOwner && (
+                              <button
+                                onClick={() => setShowUpload(lease)}
+                                className="p-2 text-primary-400 hover:bg-primary-500/10 border border-primary-500/20 rounded-lg transition-colors"
+                                title="Upload Document"
+                                id={`upload-doc-${lease._id}`}
+                              >
+                                <Upload size={14} />
+                              </button>
+                            )}
+                            {isManager && (
+                              <>
+                                <button
+                                  onClick={() => navigate(`/edit-lease/${lease._id}`)}
+                                  className="p-2 text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 rounded-lg transition-colors"
+                                  title="Edit Lease"
+                                  id={`edit-lease-${lease._id}`}
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (window.confirm('Delete this lease?')) {
+                                      try {
+                                        await api.delete(`/leases/${lease._id}`);
+                                        toast.success('Lease deleted');
+                                        setLeases(prev => prev.filter(l => l._id !== lease._id));
+                                      } catch (err) {
+                                        console.log(err.response);
+                                        toast.error('Delete failed');
+                                      }
+                                    }
+                                  }}
+                                  className="p-2 text-red-400 hover:bg-red-500/10 border border-red-500/20 rounded-lg transition-colors"
+                                  title="Delete Lease"
+                                  id={`delete-lease-${lease._id}`}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>

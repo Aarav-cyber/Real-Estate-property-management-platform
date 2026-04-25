@@ -1,4 +1,5 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Building2, FileText, CreditCard,
@@ -7,7 +8,6 @@ import {
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const ownerLinks = [
@@ -18,6 +18,13 @@ export default function Sidebar({ open, onClose }) {
     { icon: ClipboardList, label: 'Requests', to: '/requests' },
   ];
 
+  const managerLinks = [
+    { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard' },
+    { icon: Building2, label: 'Manage Properties', to: '/properties' },
+    { icon: FileText, label: 'Leases', to: '/leases' },
+    { icon: CreditCard, label: 'Payments', to: '/payments' },
+  ];
+
   const tenantLinks = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard' },
     { icon: Building2, label: 'Browse Properties', to: '/properties' },
@@ -25,7 +32,12 @@ export default function Sidebar({ open, onClose }) {
     { icon: CreditCard, label: 'Payments', to: '/payments' },
   ];
 
-  const links = user?.role === 'owner' ? ownerLinks : tenantLinks;
+  // Determine navigation links based on user role
+  const links = user?.role?.toLowerCase() === 'owner'
+    ? ownerLinks
+    : user?.role?.toLowerCase() === 'manager'
+    ? managerLinks
+    : tenantLinks;
 
   const handleLogout = () => {
     logout();
@@ -73,17 +85,23 @@ export default function Sidebar({ open, onClose }) {
         {/* Nav Links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {links.map(({ icon: Icon, label, to }) => (
-            <Link
+            <NavLink
               key={to}
               to={to}
               onClick={onClose}
               id={`sidebar-${label.toLowerCase().replace(/\s/g, '-')}`}
-              className={`sidebar-link ${location.pathname === to ? 'active' : ''}`}
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? 'active' : ''}`
+              }
             >
-              <Icon size={17} />
-              <span>{label}</span>
-              {location.pathname === to && <ChevronRight size={14} className="ml-auto" />}
-            </Link>
+              {({ isActive }) => (
+                <>
+                  <Icon size={17} />
+                  <span>{label}</span>
+                  {isActive && <ChevronRight size={14} className="ml-auto" />}
+                </>
+              )}
+            </NavLink>
           ))}
         </nav>
 

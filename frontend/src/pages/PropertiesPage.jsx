@@ -5,6 +5,7 @@ import PropertyMap from '../components/PropertyMap';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import { propertiesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import api from '../lib/axios';
 import { Building2, Plus, MapPin, Edit2, Trash2, X, Loader2, Search, Users, LayoutGrid, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -13,27 +14,29 @@ const libraries = ['places'];
 
 function Modal({ title, onClose, children }) {
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    >
+    <>
       <motion.div 
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="card w-full max-w-lg p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display font-bold text-xl text-white">{title}</h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors" id="modal-close">
-            <X size={18} />
-          </button>
-        </div>
-        {children}
+        <motion.div 
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 20 }}
+          className="card w-full max-w-lg p-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-display font-bold text-xl text-white">{title}</h2>
+            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors" id="modal-close">
+              <X size={18} />
+            </button>
+          </div>
+          {children}
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
 
@@ -43,7 +46,7 @@ export default function PropertiesPage() {
   
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || "",
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
     libraries
   });
 
@@ -80,7 +83,8 @@ export default function PropertiesPage() {
     }
   };
 
-  const isOwner = user?.role === 'owner';
+  const isOwner = user?.role?.toLowerCase() === 'owner';
+  const isManager = user?.role?.toLowerCase() === 'manager';
 
   useEffect(() => {
     fetchProperties();
@@ -89,8 +93,12 @@ export default function PropertiesPage() {
   const fetchProperties = async () => {
     try {
       const res = await propertiesAPI.getAll();
-      setProperties(res.data.data || []);
-    } catch {
+      // Handle both { data: { data: [...] } } and { data: [...] } shapes
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      console.log('[fetchProperties] loaded:', list.length, 'properties');
+      setProperties(list);
+    } catch (err) {
+      console.error('[fetchProperties] error:', err.response);
       toast.error('Failed to load properties');
     } finally {
       setLoading(false);
@@ -138,14 +146,18 @@ export default function PropertiesPage() {
     }
   };
 
+  // Manager delete — optimistic state update, no reload
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this property?')) return;
     try {
-      await propertiesAPI.delete(id);
+      const res = await api.delete(`/properties/${id}`);
+      console.log('[handleDelete] success:', res.data);
       toast.success('Property deleted');
-      fetchProperties();
-    } catch {
-      toast.error('Failed to delete');
+      // Update UI immediately without re-fetching
+      setProperties(prev => prev.filter(p => p._id !== id));
+    } catch (err) {
+      console.error('[handleDelete] error:', err.response);
+      toast.error(err?.response?.data?.message || 'Failed to delete');
     }
   };
 
@@ -202,11 +214,21 @@ export default function PropertiesPage() {
                     <MapIcon size={18} />
                 </button>
              </div>
-             {isOwner && (
-                <button onClick={() => setShowAdd(true)} className="btn-primary" id="add-property-btn">
-                <Plus size={17} /> Add Property
-                </button>
-            )}
+             {(isOwner || isManager) && (
+                isManager ? (
+                  <button
+                    onClick={() => navigate('/add-property')}
+                    className="btn-primary"
+                    id="add-property-btn"
+                  >
+                    <Plus size={17} /> Add Property
+                  </button>
+                ) : (
+                  <button onClick={() => setShowAdd(true)} className="btn-primary" id="add-property-btn">
+                    <Plus size={17} /> Add Property
+                  </button>
+                )
+              )}
           </div>
         </div>
 
@@ -291,19 +313,25 @@ export default function PropertiesPage() {
                                     View Details
                                 </button>
                                 
-                                {isOwner && (
-                                    <div className="flex gap-2">
+                                {(isOwner || isManager) && (
+                                  <div className="flex gap-2">
+                                    {isOwner && (
+                                      <>
                                         <button onClick={() => openEdit(p)} className="flex-1 btn-secondary py-2 text-sm justify-center" id={`edit-prop-${p._id}`}>
-                                            <Edit2 size={13} /> Edit
+                                          <Edit2 size={13} /> Edit
                                         </button>
                                         <button onClick={() => { setShowAssign(p); setAssignForm({ tenantId: '', leaseStart: '', leaseEnd: '' }); }}
-                                            className="flex-1 btn-secondary py-2 text-sm justify-center text-green-400 border-green-500/30 hover:bg-green-500/10" id={`assign-prop-${p._id}`}>
-                                            <Users size={13} /> Assign
+                                          className="flex-1 btn-secondary py-2 text-sm justify-center text-green-400 border-green-500/30 hover:bg-green-500/10" id={`assign-prop-${p._id}`}>
+                                          <Users size={13} /> Assign
                                         </button>
-                                        <button onClick={() => handleDelete(p._id)} className="p-2 text-red-400 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-colors" id={`delete-prop-${p._id}`}>
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
+                                      </>
+                                    )}
+                                    {isManager && (
+                                      <button onClick={() => handleDelete(p._id)} className="p-2 text-red-400 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-colors" id={`delete-prop-${p._id}`}>
+                                        <Trash2 size={14} />
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                              </div>
                             </div>

@@ -9,6 +9,8 @@ const {
   createLease,
   getLeases,
   getLeaseById,
+  updateLease,
+  deleteLease,
 } = require("../controllers/leaseController");
 
 const router = express.Router();
@@ -16,17 +18,17 @@ const router = express.Router();
 router.post(
   "/upload",
   authMiddleware,
-  roleMiddleware("owner"),
+  roleMiddleware(["owner", "manager"]),
   upload.single("file"),
   [body("leaseId").notEmpty().withMessage("Lease ID required")],
   uploadLease,
 );
 
-// Create lease (owner)
+// Create lease
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("owner"),
+  roleMiddleware(["owner", "manager"]),
   [
     body("tenantId").notEmpty().withMessage("Tenant ID required"),
     body("propertyId").notEmpty().withMessage("Property ID required"),
@@ -42,4 +44,9 @@ router.get("/:id", authMiddleware, getLeaseById);
 // Get leases (any authenticated user)
 router.get("/", authMiddleware, getLeases);
 
+// Update and Delete (Owner/Manager)
+router.put("/:id", authMiddleware, roleMiddleware(["owner", "manager"]), updateLease);
+router.delete("/:id", authMiddleware, roleMiddleware(["owner", "manager"]), deleteLease);
+
 module.exports = router;
+

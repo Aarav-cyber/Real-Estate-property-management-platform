@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { paymentsAPI } from '../services/api';
+import api from '../lib/axios';
 import { useAuth } from '../context/AuthContext';
-import { CreditCard, Plus, X, Loader2, CheckCircle2, Clock, Building2, IndianRupee } from 'lucide-react';
+import { CreditCard, Plus, X, Loader2, CheckCircle2, Clock, Building2, IndianRupee, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -34,6 +36,7 @@ function Modal({ title, onClose, children }) {
 }
 
 export default function PaymentsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,9 +44,26 @@ export default function PaymentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ propertyId: '', amount: '', status: 'pending', existingPaymentId: null });
 
-  const isTenant = user?.role === 'tenant';
+  const isTenant = user?.role?.toLowerCase() === 'tenant';
+  const isManager = user?.role?.toLowerCase() === 'manager';
 
-  useEffect(() => { fetchPayments(); }, []);
+  const location = useLocation();
+
+  useEffect(() => { 
+    fetchPayments(); 
+
+    if (location.state?.propertyId) {
+      setForm(prev => ({
+        ...prev,
+        propertyId: location.state.propertyId,
+        amount: location.state.amount || '',
+        status: 'paid'
+      }));
+      setShowPay(true);
+      // Clean up state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const fetchPayments = async () => {
     try {
@@ -51,6 +71,18 @@ export default function PaymentsPage() {
       setPayments(res.data.data || []);
     } catch { toast.error('Failed to load payments'); }
     finally { setLoading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this payment record?')) return;
+    try {
+      await api.delete(`/payments/${id}`);
+      toast.success('Payment deleted');
+      setPayments(prev => prev.filter(p => p._id !== id));
+    } catch (err) {
+      console.log(err.response);
+      toast.error('Delete failed');
+    }
   };
 
   const handlePayDirect = async (e) => {
@@ -167,11 +199,18 @@ export default function PaymentsPage() {
             <h2 className="font-display font-bold text-2xl text-white">Payment History</h2>
             <p className="text-gray-400 text-sm mt-1">{payments.length} total transactions</p>
           </div>
-          {isTenant && (
-            <button onClick={() => setShowPay(true)} className="btn-primary" id="make-payment-btn">
-              <Plus size={17} /> Make Payment
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isManager && (
+              <button onClick={() => navigate('/add-payment')} className="btn-primary" id="add-payment-btn">
+                <Plus size={17} /> Add Payment
+              </button>
+            )}
+            {isTenant && (
+              <button onClick={() => setShowPay(true)} className="btn-primary" id="make-payment-btn">
+                <Plus size={17} /> Make Payment
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -215,7 +254,7 @@ export default function PaymentsPage() {
               <table className="w-full">
                 <thead className="border-b border-white/5 bg-dark-700/40">
                   <tr>
-                    {['Property', 'Tenant', 'Amount', 'Date', 'Status'].map((h) => (
+                    {['Property', 'Tenant', 'Amount', 'Date', 'Status', isManager ? 'Actions' : ''].filter(Boolean).map((h) => (
                       <th key={h} className="table-header text-left">{h}</th>
                     ))}
                   </tr>
@@ -254,22 +293,33 @@ export default function PaymentsPage() {
                         {pay.paymentDate ? format(new Date(pay.paymentDate), 'dd MMM yyyy') : '—'}
                       </td>
                       <td className="table-cell">
-                        {pay.status === 'paid' ? (
-                          <span className="badge-green"><CheckCircle2 size={11} /> Paid</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="badge-yellow"><Clock size={11} /> Pending</span>
-                            {isTenant && (
-                              <button 
-                                onClick={() => handlePayNow(pay)}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 text-[10px] font-bold uppercase tracking-wider transition-all"
-                                id={`pay-now-${pay._id}`}
-                              >
-                                <CreditCard size={10} /> Pay Now
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {pay.status === 'paid' ? (
+                            <span className="badge-green"><CheckCircle2 size={11} /> Paid</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="badge-yellow"><Clock size={11} /> Pending</span>
+                              {isTenant && (
+                                <button 
+                                  onClick={() => handlePayNow(pay)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 text-[10px] font-bold uppercase tracking-wider transition-all"
+                                  id={`pay-now-${pay._id}`}
+                                >
+                                  <CreditCard size={10} /> Pay Now
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {isManager && (
+                            <button 
+                              onClick={() => handleDelete(pay._id)}
+                              className="p-1.5 text-red-400 hover:bg-red-500/10 border border-red-500/20 rounded-lg transition-colors ml-auto"
+                              id={`delete-pay-${pay._id}`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   ))}
