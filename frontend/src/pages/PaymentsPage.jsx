@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { paymentsAPI } from '../services/api';
+import { paymentsAPI, leasesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { CreditCard, Plus, X, Loader2, CheckCircle2, Clock, Building2, IndianRupee } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,12 +38,28 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPay, setShowPay] = useState(false);
+  const [showIssue, setShowIssue] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ propertyId: '', amount: '', status: 'pending', existingPaymentId: null });
+  const [issueForm, setIssueForm] = useState({ tenantId: '', propertyId: '', amount: '' });
+  const [ownerLeases, setOwnerLeases] = useState([]);
 
   const isTenant = user?.role === 'tenant';
+  const isOwner = user?.role === 'owner';
 
-  useEffect(() => { fetchPayments(); }, []);
+  useEffect(() => { 
+    fetchPayments(); 
+    if (isOwner) fetchLeases();
+  }, [isOwner]);
+
+  const fetchLeases = async () => {
+    try {
+      const res = await leasesAPI.getAll();
+      setOwnerLeases(res.data.data || []);
+    } catch {
+      console.error("Failed to load leases for owner");
+    }
+  };
 
   const fetchPayments = async () => {
     try {
@@ -70,6 +86,28 @@ export default function PaymentsPage() {
       fetchPayments();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Payment failed');
+    } finally { setSubmitting(false); }
+  };
+
+  const handleIssuePayment = async (e) => {
+    e.preventDefault();
+    if (!issueForm.tenantId || !issueForm.propertyId || !issueForm.amount) { 
+      toast.error('All fields required'); 
+      return; 
+    }
+    setSubmitting(true);
+    try {
+      await paymentsAPI.issue({
+        tenantId: issueForm.tenantId,
+        propertyId: issueForm.propertyId,
+        amount: Number(issueForm.amount)
+      });
+      toast.success('Payment successfully issued!');
+      setShowIssue(false);
+      setIssueForm({ tenantId: '', propertyId: '', amount: '' });
+      fetchPayments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to issue payment');
     } finally { setSubmitting(false); }
   };
 
@@ -170,6 +208,11 @@ export default function PaymentsPage() {
           {isTenant && (
             <button onClick={() => setShowPay(true)} className="btn-primary" id="make-payment-btn">
               <Plus size={17} /> Make Payment
+            </button>
+          )}
+          {isOwner && (
+            <button onClick={() => setShowIssue(true)} className="btn-primary" id="issue-payment-btn">
+              <Plus size={17} /> Issue Payment
             </button>
           )}
         </div>
@@ -329,6 +372,65 @@ export default function PaymentsPage() {
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : 'Record Payment'}
                 </button>
               )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showIssue && (
+        <Modal title="Issue Payment" onClose={() => { setShowIssue(false); setIssueForm({ tenantId: '', propertyId: '', amount: '' }); }}>
+          <div className="space-y-4">
+            <p className="text-gray-400 text-sm mb-4">
+              Issue a pending payment for a tenant. They will be able to pay it from their dashboard.
+            </p>
+            <div>
+              <label className="label">Select Lease</label>
+              <select 
+                className="input cursor-pointer" 
+                onChange={(e) => {
+                  const lease = ownerLeases.find(l => l._id === e.target.value);
+                  if (lease) {
+                    setIssueForm({
+                      tenantId: lease.tenant?._id || lease.tenant,
+                      propertyId: lease.property?._id || lease.property,
+                      amount: lease.property?.rent || ''
+                    });
+                  } else {
+                    setIssueForm({ tenantId: '', propertyId: '', amount: '' });
+                  }
+                }}
+              >
+                <option value="">-- Select a Lease --</option>
+                {ownerLeases.map(lease => (
+                  <option key={lease._id} value={lease._id}>
+                    {lease.property?.title || 'Property'} - {lease.tenant?.name || 'Tenant'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {issueForm.propertyId && (
+              <div className="p-3 bg-primary-500/10 border border-primary-500/20 rounded-xl">
+                <p className="text-xs text-primary-400 mb-1">Selected Tenant</p>
+                <p className="text-white text-sm font-medium">
+                  {ownerLeases.find(l => (l.property?._id || l.property) === issueForm.propertyId)?.tenant?.name || 'Unknown'}
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="label">Rent Amount (₹)</label>
+              <div className="relative">
+                <IndianRupee size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input type="number" min="1" className="input pl-9" placeholder="e.g. 25000" value={issueForm.amount}
+                  onChange={(e) => setIssueForm({ ...issueForm, amount: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowIssue(false)} className="btn-secondary flex-1 justify-center">Cancel</button>
+              <button onClick={handleIssuePayment} disabled={submitting} className="btn-primary flex-1 justify-center" id="submit-issue-btn">
+                {submitting ? <Loader2 size={16} className="animate-spin" /> : 'Issue Payment'}
+              </button>
             </div>
           </div>
         </Modal>

@@ -3,12 +3,16 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const path = require("path");
+const startCronJobs = require("./utils/cron");
 
 // Load environment variables
 dotenv.config();
 
 // Connect to database
 connectDB();
+
+// Initialize Cron Jobs
+startCronJobs();
 
 const app = express();
 const errorHandler = require("./middleware/errorHandler");

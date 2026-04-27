@@ -1,5 +1,6 @@
 const { validationResult } = require("express-validator");
 const Payment = require("../models/Payment");
+const Property = require("../models/Property");
 const razorpay = require("../utils/razorpay");
 
 const crypto = require("crypto");
@@ -42,10 +43,50 @@ exports.addPayment = async (req, res) => {
   }
 };
 
+// ➕ Issue Payment (Owner only)
+exports.issuePayment = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty())
+      return res.status(400).json({ success: false, message: errors.array()[0].msg });
+      
+    const { tenantId, propertyId, amount } = req.body;
+
+    const property = await Property.findById(propertyId);
+    if (!property || property.owner.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: "Not authorized to issue payment for this property" });
+    }
+
+    const payment = await Payment.create({
+      tenant: tenantId,
+      property: propertyId,
+      amount,
+      status: "pending",
+    });
+
+    const populated = await Payment.findById(payment._id)
+      .populate("tenant", "name email")
+      .populate("property", "title location");
+
+    return res.status(201).json({ success: true, message: "Payment issued", data: populated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // 📥 Get Payment History
 exports.getPayments = async (req, res) => {
   try {
-    const payments = await Payment.find()
+    let filter = {};
+    if (req.user.role === 'owner') {
+      const properties = await Property.find({ owner: req.user.id }).select('_id');
+      const propertyIds = properties.map(p => p._id);
+      filter.property = { $in: propertyIds };
+    } else if (req.user.role === 'tenant') {
+      filter.tenant = req.user.id;
+    }
+
+    const payments = await Payment.find(filter)
       .populate("tenant", "name email")
       .populate("property", "title location");
 

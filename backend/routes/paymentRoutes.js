@@ -2,7 +2,7 @@ const express = require("express");
 const { body } = require("express-validator");
 
 
-const { addPayment, getPayments, createOrder, verifyPayment } = require("../controllers/paymentController");
+const { addPayment, getPayments, createOrder, verifyPayment, issuePayment } = require("../controllers/paymentController");
 
 
 
@@ -14,6 +14,19 @@ const router = express.Router();
 router.post("/create-order", authMiddleware, createOrder);
 //VerifyPayment
 router.post("/verify", authMiddleware, verifyPayment);
+
+// Owner issues a payment
+router.post(
+  "/issue",
+  authMiddleware,
+  roleMiddleware("owner"),
+  [
+    body("tenantId").notEmpty().withMessage("Tenant ID required"),
+    body("propertyId").notEmpty().withMessage("Property ID required"),
+    body("amount").isNumeric().withMessage("Amount must be number"),
+  ],
+  issuePayment
+);
 
 // Tenant pays
 router.post(

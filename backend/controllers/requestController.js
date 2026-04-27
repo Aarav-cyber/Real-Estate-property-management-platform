@@ -71,23 +71,9 @@ exports.acceptRequest = async (req, res) => {
     request.status = "accepted";
     await request.save();
 
-    // create lease automatically (1 year)
-    const lease = await Lease.create({
-      tenant: request.tenant,
-      property: request.property,
-      startDate: new Date(),
-      endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-    });
-
-    // attach lease to property
-    property.leases = property.leases || [];
-    property.leases.push(lease._id);
-    await property.save();
-
     res.json({
       success: true,
-      message: "Request accepted & lease created",
-      data: { lease },
+      message: "Request accepted",
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

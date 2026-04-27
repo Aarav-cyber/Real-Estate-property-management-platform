@@ -1,5 +1,6 @@
 const Lease = require("../models/Lease");
 const Property = require("../models/Property");
+const Request = require("../models/Request");
 const { validationResult } = require("express-validator");
 
 // ➕ Create Lease
@@ -25,6 +26,9 @@ exports.createLease = async (req, res) => {
       $push: { leases: lease._id },
     });
 
+    // Delete any accepted request for this tenant and property
+    await Request.findOneAndDelete({ tenant: tenantId, property: propertyId, status: "accepted" });
+
     const populated = await Lease.findById(lease._id)
       .populate("tenant", "name email")
       .populate("property", "title location");
@@ -40,7 +44,16 @@ exports.createLease = async (req, res) => {
 // 📥 Get Leases
 exports.getLeases = async (req, res) => {
   try {
-    const leases = await Lease.find()
+    let filter = {};
+    if (req.user.role === 'owner') {
+      const properties = await Property.find({ owner: req.user.id }).select('_id');
+      const propertyIds = properties.map(p => p._id);
+      filter.property = { $in: propertyIds };
+    } else if (req.user.role === 'tenant') {
+      filter.tenant = req.user.id;
+    }
+
+    const leases = await Lease.find(filter)
       .populate("tenant", "name email")
       .populate("property", "title location");
 
