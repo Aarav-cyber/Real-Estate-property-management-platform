@@ -345,8 +345,8 @@ Example:
 MONGO_URI=mongodb://localhost:27017/realestate
 PORT=5000
 JWT_SECRET=supersecretkey
-RAZORPAY_KEY=rzp_test_ShM28qrjEZu7VU
-RAZORPAY_SECRET=2o5GVEW8NOwEgKoah1SwJf8F
+RAZORPAY_KEY=your_test key
+RAZORPAY_SECRET=your key
 ```
 
 ### Frontend (`.env` file in frontend folder)
